@@ -73,18 +73,14 @@ module FileWatch
             _read_file(path, &block)
           end
         when :modify
-          if !@files.member?(path)
             @logger.debug(":modify for #{path}, does not exist in @files")
             if _open_file(path, event)
               _read_file(path, &block)
             end
-          else
-            _read_file(path, &block)
-          end
         when :delete
           @logger.debug(":delete for #{path}, deleted from @files")
-          _read_file(path, &block)
-          @files[path].close
+          #_read_file(path, &block)
+          #@files[path].close
           @files.delete(path)
           @statcache.delete(path)
         else
@@ -114,7 +110,11 @@ module FileWatch
       end
 
       stat = File::Stat.new(path)
-      inode = [stat.ino, stat.dev_major, stat.dev_minor]
+	  if stat.ino == 0
+	    inode = [Digest::SHA256.base64digest(path), stat.dev_major, stat.dev_minor]
+	  else
+        inode = [stat.ino.to_s, stat.dev_major, stat.dev_minor]
+	  end
       @statcache[path] = inode
 
       if @sincedb.member?(inode)
@@ -165,6 +165,7 @@ module FileWatch
         end
       end
 
+	  @files[path].close();
       if changed
         now = Time.now.to_i
         delta = now - @sincedb_last_write
@@ -195,7 +196,7 @@ module FileWatch
       @logger.debug("_sincedb_open: reading from #{path}")
       db.each do |line|
         ino, dev_major, dev_minor, pos = line.split(" ", 4)
-        inode = [ino.to_i, dev_major.to_i, dev_minor.to_i]
+        inode = [ino, dev_major.to_i, dev_minor.to_i]
         @logger.debug("_sincedb_open: setting #{inode.inspect} to #{pos.to_i}")
         @sincedb[inode] = pos.to_i
       end

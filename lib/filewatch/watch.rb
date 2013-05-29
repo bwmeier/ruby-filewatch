@@ -68,7 +68,11 @@ module FileWatch
           next
         end
 
-        inode = [stat.ino, stat.dev_major, stat.dev_minor]
+		  if stat.ino == 0
+			inode = [Digest::SHA256.base64digest(path), stat.dev_major, stat.dev_minor]
+		  else
+			inode = [stat.ino.to_s, stat.dev_major, stat.dev_minor]
+		  end
         if inode != @files[path][:inode]
           @logger.debug("#{path}: old inode was #{@files[path][:inode].inspect}, new is #{inode.inspect}")
           yield(:delete, path)
@@ -137,9 +141,14 @@ module FileWatch
         next if skip
 
         stat = File::Stat.new(file)
+	  if stat.ino == 0
+	    inode = [Digest::SHA256.base64digest(path), stat.dev_major, stat.dev_minor]
+	  else
+        inode = [stat.ino.to_s, stat.dev_major, stat.dev_minor]
+	  end
         @files[file] = {
           :size => 0,
-          :inode => [stat.ino, stat.dev_major, stat.dev_minor],
+          :inode => inode,
           :create_sent => false,
         }
         if initial
